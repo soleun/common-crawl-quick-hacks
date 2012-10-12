@@ -1,0 +1,12 @@
+35,000 metadata files; varying sizes; 30-50mb each
+
+after link extraction 12gb (gz)
+
+$ zcat part*.gz | wc -l  # ie number of distinct pairs
+809,399,576
+
+$ zcat part-r-*gz | awk '{S+=$2}END{print S}'  # number of links
+
+just tld down (with filter) to 4mb (gz)
+35,000 pairs, 
+806,561,990 total links
