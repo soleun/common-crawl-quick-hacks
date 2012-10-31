@@ -2,27 +2,28 @@ common crawl recently released some preprocessed versions of their 2012 crawl da
 
 let's review one part of it, the link data...
 
-first we need to know where to find it. as described in the wiki it's chunked into segments with all sorts of preprocessed data available. for this quick hack all i want is the meta data...
+first we need to know where to find it. as described in the wiki it's chunked into segments with all sorts of preprocessed data available. for this quick hack all i want is the meta data.
+it's important to check that list of valid segments first since these are subject to change as the crawl is updated.
 
     $ s3cmd get s3://aws-publicdatasets/common-crawl/parse-output/valid_segments.txt 
-      1341690147253
-      1341690148298
-      1341690149519
+      1346690147253
+      1346690148298
+      1346690149519
       ...
 
 just pick a random one...
 
-    $ s3cmd ls s3://aws-publicdatasets/common-crawl/parse-output/segment/1341690147253/ | grep metadata
-      2012-07-08 00:53  41937063   s3://aws-publicdatasets/common-crawl/parse-output/segment/1341690147253/metadata-00000
-      2012-07-08 00:54  42539894   s3://aws-publicdatasets/common-crawl/parse-output/segment/1341690147253/metadata-00001
-      2012-07-08 00:57  32111625   s3://aws-publicdatasets/common-crawl/parse-output/segment/1341690147253/metadata-00002
+    $ s3cmd ls s3://aws-publicdatasets/common-crawl/parse-output/segment/1346690147253/ | grep metadata
+      2012-07-08 00:53  41937063   s3://aws-publicdatasets/common-crawl/parse-output/segment/1346690147253/metadata-00000
+      2012-07-08 00:54  42539894   s3://aws-publicdatasets/common-crawl/parse-output/segment/1346690147253/metadata-00001
+      2012-07-08 00:57  32111625   s3://aws-publicdatasets/common-crawl/parse-output/segment/1346690147253/metadata-00002
       ...
-      2012-07-08 01:32   5717068   s3://aws-publicdatasets/common-crawl/parse-output/segment/1341690147253/metadata-04379
-      2012-07-08 01:32   5608750   s3://aws-publicdatasets/common-crawl/parse-output/segment/1341690147253/metadata-04380
+      2012-07-08 01:32   5717068   s3://aws-publicdatasets/common-crawl/parse-output/segment/1346690147253/metadata-04379
+      2012-07-08 01:32   5608750   s3://aws-publicdatasets/common-crawl/parse-output/segment/1346690147253/metadata-04380
 
 since these files are hadoop sequence files, the easiest way to have a review them is using `hadoop fs -text`. 
 
-    $ hadoop fs -text s3://aws-publicdatasets/common-crawl/parse-output/segment/1341690147253/metadata-00000 2>/dev/null | head -n1
+    $ hadoop fs -text s3://aws-publicdatasets/common-crawl/parse-output/segment/1346690147253/metadata-00000 2>/dev/null | head -n1
       http://www.museo-cb.com/museo-cb/audio-y-video/frequency-vhs/   {"attempt_time":1328767770376,"disposition":"SUCCESS","server_ip":"77.229.63.16","http_result":200,"http_headers":{"response":"HTTP/1.1 200 OK","server":"Zope/(Zope 2.9.6-final, python 2.4.4...
 
 this is standard hadoop key/value data where the first field is the crawl url and the second field is the json metadata. we can get a formatted version of the
@@ -59,7 +60,7 @@ if we want to do link analysis we just need to extract these
 
 first we get an example row from a metadata file
 
-    $ hadoop fs -text s3://aws-publicdatasets/common-crawl/parse-output/segment/1341690147253/metadata-00000 2>/dev/null
+    $ hadoop fs -text s3://aws-publicdatasets/common-crawl/parse-output/segment/1346690147253/metadata-00000 2>/dev/null
      | head -n1 > meta_data_single_row.tsv
 
 then we feed it through a <a href="https://github.com/matpalm/common-crawl/blob/master/meta_data_example/links_extractor.py">links extraction script</a> which, in this simple case, just emits two columns; the source top level domain and the top level domain of each other link that's not the same. 
@@ -71,7 +72,7 @@ for our simple example it's just the one link...
 
 trying a slightly larger dataset...
 
-    $ hadoop fs -text s3://aws-publicdatasets/common-crawl/parse-output/segment/1341690147253/metadata-00000 2>/dev/null | head -n100 | gzip > meta_data.100.tsv.gz
+    $ hadoop fs -text s3://aws-publicdatasets/common-crawl/parse-output/segment/1346690147253/metadata-00000 2>/dev/null | head -n100 | gzip > meta_data.100.tsv.gz
     $ zcat meta_data.100.tsv.gz | ./links_extractor.py | sort | uniq -c | sort -nr | head
      326 www.softmix.org	       softmix.org
       48 store.shopping.yahoo.co.jp	i.yimg.jp
@@ -89,13 +90,13 @@ so my naive top level domain extraction was as naive as i expected (ie very) but
 now that we have a working script we run it via hadoop streaming against an even larger dataset. let's just do the first metadata file.
 
     $ hadoop jar ./.versions/0.20.205/share/hadoop/contrib/streaming/hadoop-streaming.jar \
-     -input s3://aws-publicdatasets/common-crawl/parse-output/segment/1341690147253/metadata-00000 \
+     -input s3://aws-publicdatasets/common-crawl/parse-output/segment/1346690147253/metadata-00000 \
      -output metadata-00000.links.gz \
      -inputformat SequenceFileAsTextInputFormat \
      -mapper 'python links_extractor.py' \
      -file links_extractor.py
 
-changing the input to `-input s3://aws-publicdatasets/common-crawl/parse-output/segment/1341690147253/metadata-*` would do the entire 170gb of the first segment (if you've got a big enough cluster)
+changing the input to `-input s3://aws-publicdatasets/common-crawl/parse-output/segment/1346690147253/metadata-*` would do the entire 170gb of the first segment (if you've got a big enough cluster)
 
 we've then got some link data to play with...
 
